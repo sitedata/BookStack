@@ -1,5 +1,6 @@
 import Code from "../services/code";
 import DrawIO from "../services/drawio";
+import EditorService from "../services/editor";
 
 /**
  * Handle pasting images from clipboard.
@@ -8,37 +9,34 @@ import DrawIO from "../services/drawio";
  * @param editor
  */
 function editorPaste(event, editor, wysiwygComponent) {
-    const clipboardItems = event.clipboardData.items;
-    if (!event.clipboardData || !clipboardItems) return;
 
-    // Don't handle if clipboard includes text content
-    for (let clipboardItem of clipboardItems) {
-        if (clipboardItem.type.includes('text/')) {
-            return;
-        }
-    }
-
-    for (let clipboardItem of clipboardItems) {
-        if (!clipboardItem.type.includes("image")) {
-            continue;
-        }
-
+    const uploadAction = (file) => {
         const id = "image-" + Math.random().toString(16).slice(2);
-        const loadingImage = window.baseUrl('/loading.gif');
-        const file = clipboardItem.getAsFile();
+        const placeholderContent = `<img src="${window.baseUrl('/loading.gif')}" alt="${id}"/>`;
 
-        setTimeout(() => {
-            editor.insertContent(`<p><img src="${loadingImage}" id="${id}"></p>`);
-
-            uploadImageFile(file, wysiwygComponent).then(resp => {
-                editor.dom.setAttrib(id, 'src', resp.thumbs.display);
-            }).catch(err => {
-                editor.dom.remove(id);
-                window.$events.emit('error', trans('errors.image_upload_error'));
-                console.log(err);
+        editor.insertContent(placeholderContent);
+        uploadImageFile(file, wysiwygComponent).then(resp => {
+            const imageEl = editor.$(`img[alt="${id}"]`)[0];
+            editor.dom.setAttribs(imageEl, {
+                src: resp.thumbs.display,
+                alt: resp.name
             });
-        }, 10);
+        }).catch(err => {
+            editor.dom.remove(id);
+            window.$events.emit('error', trans('errors.image_upload_error'));
+            console.log(err);
+        });
+    };
+
+    const htmlAction = (html) => {
+        editor.insertContent(html);
+    };
+
+    const wasHandled = EditorService.handlePaste(event, uploadAction, htmlAction);
+    if (wasHandled) {
+        event.preventDefault();
     }
+    return !wasHandled;
 }
 
 /**
@@ -408,7 +406,7 @@ class WysiwygEditor {
         this.pageId = pageEditor.getAttribute('page-id');
         this.textDirection = pageEditor.getAttribute('text-direction');
 
-        this.plugins = "image table textcolor paste link autolink fullscreen imagetools code customhr autosave lists codeeditor media";
+        this.plugins = "image table textcolor link autolink fullscreen imagetools code customhr autosave lists codeeditor media";
         this.loadPlugins();
 
         this.tinyMceConfig = this.getTinyMceConfig();
