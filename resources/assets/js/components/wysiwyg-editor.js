@@ -4,17 +4,20 @@ import EditorService from "../services/editor";
 
 /**
  * Handle pasting images from clipboard.
- * @param {ClipboardEvent} event
+ * @param {ClipboardEvent|DragEvent} event
  * @param {WysiwygEditor} wysiwygComponent
  * @param editor
  */
-function editorPaste(event, editor, wysiwygComponent) {
+function editorPasteOrDrop(event, editor, wysiwygComponent) {
 
     const uploadAction = (file) => {
         const id = "image-" + Math.random().toString(16).slice(2);
         const placeholderContent = `<img src="${window.baseUrl('/loading.gif')}" alt="${id}"/>`;
 
-        editor.insertContent(placeholderContent);
+        editor.undoManager.ignore(() => {
+            editor.insertContent(placeholderContent);
+        });
+
         uploadImageFile(file, wysiwygComponent).then(resp => {
             const imageEl = editor.$(`img[alt="${id}"]`)[0];
             editor.dom.setAttribs(imageEl, {
@@ -32,7 +35,8 @@ function editorPaste(event, editor, wysiwygComponent) {
         editor.insertContent(html);
     };
 
-    const wasHandled = EditorService.handlePaste(event, uploadAction, htmlAction);
+    const dataTransfer = event.clipboardData || event.dataTransfer;
+    const wasHandled = EditorService.handleDataTransfer(dataTransfer, uploadAction, htmlAction);
     if (wasHandled) {
         event.preventDefault();
     }
@@ -631,6 +635,10 @@ class WysiwygEditor {
                         });
                     }
 
+                    if (event.dataTransfer && event.dataTransfer.types.includes('Files')) {
+                        editorPasteOrDrop(event, editor, context);
+                    }
+
                     wrap = null;
                 });
 
@@ -650,7 +658,7 @@ class WysiwygEditor {
                 });
 
                 // Paste image-uploads
-                editor.on('paste', event => editorPaste(event, editor, context));
+                editor.on('paste', event => editorPasteOrDrop(event, editor, context));
 
             }
         };

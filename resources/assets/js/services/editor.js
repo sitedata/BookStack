@@ -1,15 +1,16 @@
 /**
- * Handle a paste event, checking the type and performing uploads
- * if an image is thought to need to be uploaded.
+ * Handle a datatransfer data, commonly found on a paste or drop event.
+ * Checks the type and performing uploads if an image is thought to need to be uploaded.
  * Returns true if an content was managed in the function otherwise false if nothing occurred.
- * @param {ClipboardEvent} event
+ * @param {DataTransfer} dataTransfer
  * @param {function(File)} uploadAction
+ * @param {function(string)} htmlAction
  * @returns boolean
  */
-function handlePaste(event, uploadAction, htmlAction) {
-    if (!event.clipboardData || !event.clipboardData.types) return false;
-    const files = event.clipboardData.files;
-    const hasTableData = checkClipboardDataForTable(event.clipboardData);
+function handleDataTransfer(dataTransfer, uploadAction, htmlAction) {
+    if (!dataTransfer || !dataTransfer.types) return false;
+    const files = dataTransfer.files;
+    const hasTableData = checkClipboardDataForTable(dataTransfer);
 
     // Find any images and upload them if found
     for (const file of files) {
@@ -19,11 +20,10 @@ function handlePaste(event, uploadAction, htmlAction) {
         }
     }
 
-    const htmlContent = event.clipboardData.getData('text/html');
+    const htmlContent = dataTransfer.getData('text/html');
     if (htmlContent) {
         const cleanedHTML = cleanHTMLPasteContent(htmlContent);
         htmlAction(cleanedHTML);
-        console.log(cleanedHTML);
         return true;
     }
 
@@ -38,13 +38,34 @@ function handlePaste(event, uploadAction, htmlAction) {
 function cleanHTMLPasteContent(html) {
     const doc = (new DOMParser()).parseFromString(html, 'text/html');
 
-    const badElements = [...document.querySelectorAll('script,style')];
+    const badElements = [...doc.querySelectorAll('script,style')];
     for (const element of badElements) {
         element.remove();
     }
 
-    // TODO - Clear styles apart from a whitelisted set
-    // TODO - Remove attributes apart from a a whitelisted set.
+    const allowedStyles = new Set(['color', 'text-align', 'font-weight']);
+    const allowedAttributes = new Set(['style', 'href', 'alt', 'src', 'align']);
+    const elements = doc.querySelectorAll('*');
+
+    for (const element of elements) {
+
+        // Remove non-allowed attributes
+        for (let i = element.attributes.length - 1; i >= 0;  i--) {
+            const attr = element.attributes[i];
+            if (!allowedAttributes.has(attr.name)) {
+                console.log(`Removing ${attr.name}`);
+                element.removeAttribute(attr.name);
+            }
+        }
+
+        // Remove non-allowed styles
+        const styles = Array.from(element.style);
+        for (const style of styles) {
+            if (!allowedStyles.has(style)) {
+                element.style[style] = null;
+            }
+        }
+    }
 
     return doc.body.innerHTML;
 }
@@ -57,10 +78,10 @@ function cleanHTMLPasteContent(html) {
  */
 function checkClipboardDataForTable(clipboardData) {
     const rtfData = clipboardData.getData('text/rtf');
-    return rtfData && rtfData.includes('\\trowd');
+    return Boolean(rtfData && rtfData.includes('\\trowd'));
 }
 
 
 export default {
-    handlePaste,
+    handleDataTransfer,
 }
