@@ -410,7 +410,7 @@ class WysiwygEditor {
         this.pageId = pageEditor.getAttribute('page-id');
         this.textDirection = pageEditor.getAttribute('text-direction');
 
-        this.plugins = "image table textcolor link autolink fullscreen imagetools code customhr autosave lists codeeditor media";
+        this.plugins = "image table paste textcolor link autolink fullscreen imagetools code customhr autosave lists codeeditor media";
         this.loadPlugins();
 
         this.tinyMceConfig = this.getTinyMceConfig();
@@ -455,7 +455,7 @@ class WysiwygEditor {
             menubar: false,
             paste_data_images: false,
             extended_valid_elements: 'pre[*],svg[*],div[drawio-diagram]',
-            automatic_uploads: false,
+            automatic_uploads: true,
             valid_children: "-div[p|h1|h2|h3|h4|h5|h6|blockquote],+div[pre],+div[img]",
             plugins: this.plugins,
             imagetools_toolbar: 'imageoptions',
@@ -533,6 +533,12 @@ class WysiwygEditor {
             },
             init_instance_callback: function(editor) {
                 loadCustomHeadContent(editor);
+            },
+            images_upload_handler: function (blobInfo, success, failure) {
+                const file = blobInfo.blob();
+                uploadImageFile(file, context).then(resp => {
+                    success(resp.thumbs.display);
+                }).catch(failure);
             },
             setup: function (editor) {
 
@@ -659,7 +665,6 @@ class WysiwygEditor {
 
                 // Paste image-uploads
                 editor.on('paste', event => editorPasteOrDrop(event, editor, context));
-
             }
         };
     }
